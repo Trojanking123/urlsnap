@@ -8,4 +8,7 @@ edition = "2021"
 [dependencies]
 thirtyfour = "0.31.0"
 tokio = { version = "1", features = ["full"] }
+serde = "1.0.193"
 serde_json = "1.0.108"
+image = "0.24.7"
+axum = "0.7.2"
