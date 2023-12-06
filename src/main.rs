@@ -1,27 +1,25 @@
+use std::env;
+use std::sync::Arc;
+
+mod compression;
+
 use axum::extract::State;
 use axum::http::*;
-
 use axum::routing::post;
 use axum::Json;
 use axum::Router;
-use image::EncodableLayout;
 use serde::Deserialize;
-use std::env;
-
-use std::sync::Arc;
-
-use async_compression::tokio::write::BrotliDecoder;
-use async_compression::tokio::write::BrotliEncoder;
-
-
 use thirtyfour::prelude::*;
-use tokio::io::AsyncWriteExt;
+
+use compression::*;
 
 #[derive(Deserialize)]
 struct InForm {
     url: String,
     h: u32,
     w: u32,
+    filename: String,
+    fileformat: String,
 }
 
 struct Driver {
@@ -40,7 +38,7 @@ async fn main() {
         .route("/api", post(take_pic))
         .with_state(shared_state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:80").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     axum::serve(listener, app).await.unwrap();
     driver.quit().await.unwrap();
 }
@@ -57,27 +55,7 @@ async fn new_driver() -> WebDriver {
     WebDriver::new(ds.as_str(), caps).await.unwrap()
 }
 
-async fn compression(buf: Vec<u8>) -> Vec<u8> {
-    let ilen = buf.len();
-    let mut output = Vec::new();
-    let mut enc = BrotliEncoder::new(&mut output);
-    enc.write_all(buf.as_bytes()).await.unwrap();
-    enc.flush().await.unwrap();
-    enc.shutdown().await.unwrap();
-    let olen = output.len();
-    println!("{ilen} {olen}");
 
-    output
-}
-#[allow(unused)]
-async fn decompression(buf: Vec<u8>) -> Vec<u8> {
-    let mut output = Vec::new();
-    let mut enc = BrotliDecoder::new(&mut output);
-    enc.write_all(buf.as_bytes()).await.unwrap();
-    enc.flush().await.unwrap();
-    enc.shutdown().await.unwrap();
-    output
-}
 
 async fn take_pic(
     State(state): State<Arc<Driver>>,
@@ -95,7 +73,8 @@ async fn take_pic(
     //driver.screenshot(Path::new("b.png")).await.unwrap();
 
     let a = driver.screenshot_as_png().await.unwrap();
-    let a = compression(a).await;
+    let a = compress_bytes(&a, EncodeType::Brotli).await;
+    
     let headers = [
         (header::CONTENT_ENCODING, "br"),
         (header::CONTENT_TYPE, "image/png"),
