@@ -12,3 +12,6 @@ serde = "1.0.193"
 serde_json = "1.0.108"
 image = "0.24.7"
 axum = "0.7.2"
+brotli = "3.4"
+flate2 = "1.0"
+async-compression = { version = "0.4", features = ["all"] }
