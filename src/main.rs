@@ -1,17 +1,25 @@
 use std::env;
 use std::sync::Arc;
 
-mod compression;
+//mod picformat;
 
 use axum::extract::State;
-use axum::http::*;
+use axum::http;
 use axum::routing::post;
 use axum::Json;
 use axum::Router;
+
+use hyper::header;
+use hyper::Request;
 use serde::Deserialize;
 use thirtyfour::prelude::*;
 
-use compression::*;
+use tower::ServiceBuilder;
+use tower::service_fn;
+use tower_http::body::Full;
+use tower_http::compression::Compression;
+use tower_http::compression::predicate::SizeAbove;
+use tower_http::compression::CompressionLayer;
 
 #[derive(Deserialize)]
 struct InForm {
@@ -34,8 +42,29 @@ async fn main() {
         driver: driver.clone(),
     });
 
+    let _a = |req: &Request<Full>| {
+        let _body = req.body();
+    };
+
+    let service = service_fn(|_: ()| async {
+        Ok::<_, std::io::Error>(http::Response::new(()))
+    });
+    let middleware =
+        ServiceBuilder::new().service(
+            Compression::new(service)
+                .compress_when(
+                    SizeAbove::new(32)
+                )
+                .br(true)
+                .gzip(true)
+                .deflate(true)
+                .quality(tower_http::CompressionLevel::Best)
+                
+        );
+
     let app = Router::new()
         .route("/api", post(take_pic))
+        .layer(middleware)
         .with_state(shared_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
@@ -55,8 +84,6 @@ async fn new_driver() -> WebDriver {
     WebDriver::new(ds.as_str(), caps).await.unwrap()
 }
 
-
-
 async fn take_pic(
     State(state): State<Arc<Driver>>,
     Json(payload): Json<InForm>,
@@ -70,13 +97,10 @@ async fn take_pic(
 
     driver.goto(payload.url).await.unwrap();
 
-    //driver.screenshot(Path::new("b.png")).await.unwrap();
-
     let a = driver.screenshot_as_png().await.unwrap();
-    let a = compress_bytes(&a, EncodeType::Brotli).await;
-    
+
     let headers = [
-        (header::CONTENT_ENCODING, "br"),
+        //(header::CONTENT_ENCODING, "br"),
         (header::CONTENT_TYPE, "image/png"),
         (
             header::CONTENT_DISPOSITION,
@@ -86,6 +110,7 @@ async fn take_pic(
 
     println!("saved: {}", a.len());
     (headers, a)
+    //driver.screenshot_as_png().await.unwrap()
 }
 
 // #[tokio::main]
