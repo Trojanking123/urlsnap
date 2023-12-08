@@ -1,25 +1,27 @@
 use std::env;
+use std::str::FromStr;
 use std::sync::Arc;
 
-//mod picformat;
+mod format_tran;
+use format_tran::*;
 
 use axum::extract::State;
-use axum::http;
 use axum::routing::post;
 use axum::Json;
 use axum::Router;
 
 use hyper::header;
-use hyper::Request;
+
 use serde::Deserialize;
+
 use thirtyfour::prelude::*;
 
 use tower::ServiceBuilder;
-use tower::service_fn;
-use tower_http::body::Full;
-use tower_http::compression::Compression;
+
 use tower_http::compression::predicate::SizeAbove;
 use tower_http::compression::CompressionLayer;
+
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 #[derive(Deserialize)]
 struct InForm {
@@ -42,28 +44,12 @@ async fn main() {
         driver: driver.clone(),
     });
 
-    let _a = |req: &Request<Full>| {
-        let _body = req.body();
-    };
-
-    let service = service_fn(|_: ()| async {
-        Ok::<_, std::io::Error>(http::Response::new(()))
-    });
     let middleware =
-        ServiceBuilder::new().service(
-            Compression::new(service)
-                .compress_when(
-                    SizeAbove::new(32)
-                )
-                .br(true)
-                .gzip(true)
-                .deflate(true)
-                .quality(tower_http::CompressionLevel::Best)
-                
-        );
+        ServiceBuilder::new().service(CompressionLayer::new().compress_when(SizeAbove::new(32)));
 
     let app = Router::new()
-        .route("/api", post(take_pic))
+        .route("/api", post(take_pic).get(take_pic))
+
         .layer(middleware)
         .with_state(shared_state);
 
@@ -97,20 +83,26 @@ async fn take_pic(
 
     driver.goto(payload.url).await.unwrap();
 
-    let a = driver.screenshot_as_png().await.unwrap();
+    let png_buffer = driver.screenshot_as_png().await.unwrap();
 
+    let encoded = utf8_percent_encode(&payload.filename, NON_ALPHANUMERIC).to_string();
+    let full_filname = format!(
+        "{}.{}",
+        encoded,
+        payload.fileformat.to_ascii_lowercase()
+    );
+    let file_format = FileFormat::from_str(&payload.fileformat).unwrap();
+    let trans_buffer = png_transformer(&png_buffer, file_format);
+
+    let dispostion = format!("attachment; filename=\"{}\"", full_filname);
+    let c_type = get_content_type(file_format);
     let headers = [
-        //(header::CONTENT_ENCODING, "br"),
-        (header::CONTENT_TYPE, "image/png"),
-        (
-            header::CONTENT_DISPOSITION,
-            "attachment; filename=\"aa.png\"",
-        ),
+        (header::CONTENT_TYPE, c_type),
+        (header::CONTENT_DISPOSITION, dispostion),
     ];
 
-    println!("saved: {}", a.len());
-    (headers, a)
-    //driver.screenshot_as_png().await.unwrap()
+    println!("saved: {}", trans_buffer.len());
+    (headers, trans_buffer)
 }
 
 // #[tokio::main]

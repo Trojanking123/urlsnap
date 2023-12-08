@@ -10,14 +10,13 @@ thirtyfour = "0.31.0"
 tokio = { version = "1", features = ["full"] }
 serde = "1.0.193"
 serde_json = "1.0.108"
-image = "0.24.7"
+image = {version = "0.24", features = ["default", "webp-encoder"]}
 axum = "0.7.2"
-brotli = "3.4"
-flate2 = "1.0"
 async-compression = { version = "0.4", features = ["all"] }
 strum = { version = "0.25", features = ["derive"] }
 tower-http = { version = "0.5", features = ["full"]}
 tower = "0.4"
 hyper = "1.0"
+percent-encoding = "2.3"
 [dev-dependencies]
 rand = "0.8"
