@@ -1,8 +1,10 @@
 use std::env;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 mod format_tran;
+use axum::response::IntoResponse;
 use format_tran::*;
 
 use axum::extract::State;
@@ -10,10 +12,13 @@ use axum::routing::post;
 use axum::Json;
 use axum::Router;
 
+use hyper::StatusCode;
 use hyper::header;
 
+use hyper::rt::Timer;
 use serde::Deserialize;
 
+use thirtyfour::cookie::SameSite;
 use thirtyfour::prelude::*;
 
 use tower::ServiceBuilder;
@@ -58,6 +63,7 @@ async fn main() {
     driver.quit().await.unwrap();
 }
 
+
 async fn new_driver() -> WebDriver {
     let ip = env::args().nth(1).unwrap_or("localhost".to_owned());
     let port = env::args().nth(2).unwrap_or("9515".to_owned());
@@ -66,15 +72,20 @@ async fn new_driver() -> WebDriver {
     let mut caps = DesiredCapabilities::chrome();
 
     caps.set_headless().unwrap();
+    //use thirtyfour::cookie::SameSite;
+    
+    let driver = WebDriver::new(ds.as_str(), caps).await.unwrap();
 
-    WebDriver::new(ds.as_str(), caps).await.unwrap()
+    driver
 }
 
 async fn take_pic(
     State(state): State<Arc<Driver>>,
     Json(payload): Json<InForm>,
-) -> impl axum::response::IntoResponse {
+) -> axum::response::Response {
     let driver = state.driver.clone();
+
+    //let driver = new_driver().await;
 
     driver
         .set_window_rect(0, 0, payload.h, payload.w)
@@ -82,6 +93,10 @@ async fn take_pic(
         .unwrap();
 
     driver.goto(payload.url).await.unwrap();
+    let mut cookie = Cookie::parse_encoded("foo=bar%20baz; HttpOnly; Secure; domain=baidu.com").unwrap();
+    cookie.set_path("/");
+    cookie.set_same_site(SameSite::None);
+    driver.add_cookie(cookie).await.unwrap();
 
     let png_buffer = driver.screenshot_as_png().await.unwrap();
 
@@ -101,8 +116,10 @@ async fn take_pic(
         (header::CONTENT_DISPOSITION, dispostion),
     ];
 
+    //driver.quit().await.unwrap();
     println!("saved: {}", trans_buffer.len());
-    (headers, trans_buffer)
+    (headers, trans_buffer).into_response()
+    
 }
 
 // #[tokio::main]

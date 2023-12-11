@@ -5,7 +5,7 @@ use image::load_from_memory;
 use image::ImageFormat;
 
 use std::io::Cursor;
-use std::time::{Instant};
+use std::time::Instant;
 
 #[derive(EnumString, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[strum(ascii_case_insensitive)]
@@ -74,6 +74,7 @@ pub fn get_content_type( inform: FileFormat ) -> String {
 
 }
 
+#[allow(unused_imports)]
 mod test {
     use std::str::FromStr;
 
