@@ -47,21 +47,17 @@ pub async fn new_driver() -> SnapResult<WebDriver> {
 pub async fn take_pic(driver: WebDriver, payload: &InForm) -> SnapResult<Vec<u8>> {
     //let driver = new_driver().await;
     let dev_tools = ChromeDevTools::new(driver.handle.clone());
-    // let version_info = dev_tools.execute_cdp("Browser.getVersion").await?;
-    // let user_agent = version_info["userAgent"].as_str().unwrap();
-    // info!("user agent: {}", user_agent);
 
     let args = json!({"userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 8_4 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Mobile/12H143","acceptLanguage": "en-US","platform": "iPhone"});
-    let b = serde_json::to_string(&args).unwrap();
-    dbg!(b);
-    dbg!(args.clone());
-    // dev_tools
-    //     .execute_cdp_with_params("Network.setUserAgentOverride", args)
-    //     .await
-    //     .unwrap();
+    let _ = dev_tools
+        .execute_cdp_with_params("Network.setUserAgentOverride", args)
+        .await;
 
-    dev_tools.execute_cdp_with_params("Network.setCacheDisabled", json!({"cacheDisabled": true})).await?;
-    let p = driver.execute("return navigator.lang", Vec::new()).await?;
+    let version_info = dev_tools.execute_cdp("Browser.getVersion").await?;
+    let user_agent = version_info["userAgent"].as_str().unwrap();
+    info!("user agent: {}", user_agent);
+
+    let p = driver.execute("return navigator.platform", Vec::new()).await?;
     let p = p.convert::<String>()?;
     info!("platform: {}", p);
 
