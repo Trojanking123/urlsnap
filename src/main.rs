@@ -24,9 +24,20 @@ use tower_http::compression::CompressionLayer;
 
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
+use tracing::info;
+use tracing_subscriber::filter::{EnvFilter, LevelFilter};
+use tracing_subscriber::FmtSubscriber;
+
+fn set_global_tracing() {
+    let filter = EnvFilter::new("LOG_LEVEL").add_directive(LevelFilter::INFO.into());
+    let subscriber = FmtSubscriber::builder().with_env_filter(filter).finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+}
+
 #[tokio::main]
 async fn main() -> SnapResult<()> {
-    // build our application with a single route
+    set_global_tracing();
+
     let driver = new_driver().await?;
     let shared_state = Arc::new(Driver {
         driver: driver.clone(),
@@ -41,6 +52,7 @@ async fn main() -> SnapResult<()> {
         .with_state(shared_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    info!("server bind to port 8080, start listening...");
     axum::serve(listener, app).await.unwrap();
     driver.quit().await?;
     Ok(())
@@ -67,8 +79,5 @@ async fn take_pic_handler(
         (header::CONTENT_TYPE, c_type),
         (header::CONTENT_DISPOSITION, dispostion),
     ];
-
-    //driver.quit().await.?;
-    println!("saved: {}", trans_buffer.len());
     (headers, trans_buffer).into_response()
 }

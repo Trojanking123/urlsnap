@@ -7,6 +7,7 @@ use image::ImageFormat;
 
 use std::io::Cursor;
 use std::time::Instant;
+use tracing::*;
 
 #[derive(EnumString, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[strum(ascii_case_insensitive)]
@@ -59,7 +60,8 @@ pub fn png_transformer(buf: &[u8], inform: FileFormat) -> SnapResult<Vec<u8>> {
         }
     };
     let duration = start.elapsed();
-    println!("函数运行时间: {:?}", duration);
+    info!("picture size {}", outbuf.len());
+    info!("picture trans cost time {:?}", duration);
     Ok(outbuf)
 }
 
