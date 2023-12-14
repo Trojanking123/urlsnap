@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
+use serde_json::Value;
 use serde_json::json;
 
 use thirtyfour::extensions::cdp::ChromeDevTools;
@@ -28,6 +29,9 @@ pub struct InForm {
     pub cookie: Option<String>,
     pub waittime: Option<u8>,
     pub fullpage: Option<bool>,
+    pub useragent: Option<String>,
+    pub platform: Option<String>,
+    pub lang: Option<String>,
 }
 
 pub async fn new_driver() -> SnapResult<WebDriver> {
@@ -44,24 +48,79 @@ pub async fn new_driver() -> SnapResult<WebDriver> {
     Ok(driver)
 }
 
+
+async fn call_cdp_command(cdt: &ChromeDevTools, cmd: &str, params: Option<Value>) -> SnapResult<Option<Value>> {
+    let res;
+    match params {
+        Some(params) => {
+            res = cdt.execute_cdp_with_params(cmd, params).await;
+        },
+        None => {
+            res = cdt.execute_cdp(cmd).await
+        }
+    }
+    match res {
+        Ok(v) => Ok(Some(v)),
+        Err(e) => {
+            match e {
+                WebDriverError::Json(_) => Ok(None),
+                _ => Err(SnapError::DriverError(e)),
+                
+            }
+        }
+    }
+}
+
+
+async fn get_browser_useragent(cdt: &ChromeDevTools) -> SnapResult<String> {
+    let version_info = call_cdp_command(cdt, "Browser.getVersion", None).await?.unwrap();
+    let user_agent = version_info["userAgent"].as_str().unwrap().to_owned();
+    info!("user agent: {}", user_agent);
+    Ok(user_agent)
+}
+
+
+
+async fn set_request_useragent(cdt: &ChromeDevTools, payload: &InForm) -> SnapResult<()> {
+    
+    let user_agent = match payload.useragent {
+        Some(_) => payload.useragent.clone().unwrap(),
+        None => get_browser_useragent(cdt).await?
+    };
+    let lang = payload.lang.clone().unwrap_or("".to_owned());
+    let platform = payload.platform.clone().unwrap_or("".to_owned());
+
+    dbg!("{}", &user_agent);
+
+    let args = json!({"userAgent": user_agent ,"acceptLanguage": lang,"platform": platform});
+    call_cdp_command(cdt, "Emulation.setUserAgentOverride", Some(args)).await?;
+
+    let args = json!({"enabled": true});
+    call_cdp_command(cdt, "Emulation.setAutoDarkModeOverride", Some(args)).await?;
+
+    let args = json!({"enabled": false});
+    call_cdp_command(cdt, "Emulation.setAutomationOverride", Some(args)).await?;
+    
+    let args = json!({"width": 428, "height": 926, "deviceScaleFactor": 3, "mobile": true, });
+    call_cdp_command(cdt, "Emulation.setDeviceMetricsOverride", Some(args)).await?;
+
+    let args = json!({"enabled": false});
+    call_cdp_command(cdt, "Emulation.setTouchEmulationEnabled", Some(args)).await?;
+
+    Ok(())
+}
+
 pub async fn take_pic(driver: WebDriver, payload: &InForm) -> SnapResult<Vec<u8>> {
     //let driver = new_driver().await;
     let dev_tools = ChromeDevTools::new(driver.handle.clone());
 
-    let args = json!({"userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 8_4 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Mobile/12H143","acceptLanguage": "en-US","platform": "iPhone"});
-    let _ = dev_tools
-        .execute_cdp_with_params("Network.setUserAgentOverride", args)
-        .await;
-
-    let version_info = dev_tools.execute_cdp("Browser.getVersion").await?;
-    let user_agent = version_info["userAgent"].as_str().unwrap();
-    info!("user agent: {}", user_agent);
+    set_request_useragent(&dev_tools, &payload).await?;
 
     let p = driver.execute("return navigator.platform", Vec::new()).await?;
     let p = p.convert::<String>()?;
     info!("platform: {}", p);
 
-    driver.set_window_rect(0, 0, payload.h, payload.w).await?;
+    //driver.set_window_rect(0, 0, payload.h, payload.w).await?;
 
     driver.goto(&payload.url).await?;
     if let Some(true) = payload.fullpage {
@@ -94,3 +153,7 @@ pub async fn take_pic(driver: WebDriver, payload: &InForm) -> SnapResult<Vec<u8>
 
     Ok(trans_buffer)
 }
+
+
+// Emulation.setAutoDarkModeOverride 
+// Emulation.setAutomationOverride
