@@ -120,9 +120,9 @@ pub struct ScreenOrientation {
 impl ScreenOrientation {
     pub fn new(is_landscape: bool, angel: u32) -> Self {
         let orien = if is_landscape {
-            Orientation::portraitPrimary
+            Orientation::landscapePrimary 
         } else {
-            Orientation::landscapePrimary
+            Orientation::portraitPrimary
         };
         ScreenOrientation {
             r#type: orien,
@@ -138,9 +138,13 @@ pub struct DeviceInfo {
     pub height: u32,
     pub deviceScaleFactor: f32,
     pub mobile: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub scale: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub screenWidth: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub screenHeight: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub screenOrientation: Option<ScreenOrientation>,
     #[serde(skip)]
     pub isTouchable: bool,
@@ -218,6 +222,7 @@ pub trait WebDriverOps {
         let mut caps = DesiredCapabilities::chrome();
 
         caps.set_headless()?;
+        caps.add_chrome_arg("--force-device-scale-factor=3.5")?;
 
         let driver = WebDriver::new(ds.as_str(), caps).await?;
 
@@ -336,6 +341,7 @@ pub async fn take_pic(driver: WebDriver, payload: &InForm) -> SnapResult<Vec<u8>
 
     dev_tools.set_request_device(&device).await?;
     dev_tools.set_darkmode(device.isDarkMode).await?;
+    dev_tools.set_scale_factor(device.deviceScaleFactor).await?;
 
     let p = driver
         .execute("return navigator.platform", Vec::new())
@@ -368,7 +374,8 @@ pub async fn take_pic(driver: WebDriver, payload: &InForm) -> SnapResult<Vec<u8>
     }
 
     let elem = driver.find(By::Tag("body")).await?;
-    let png_buffer = elem.screenshot_as_png().await?;
+    //let png_buffer = elem.screenshot_as_png().await?;
+    let png_buffer = driver.screenshot_as_png().await?;
     let file_format = FileFormat::from_str(&payload.fileformat)?;
     let trans_buffer = png_transformer(&png_buffer, file_format)?;
 
