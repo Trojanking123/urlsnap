@@ -18,6 +18,7 @@ use axum::Router;
 
 use hyper::header;
 
+use thirtyfour::WebDriver;
 use tower::ServiceBuilder;
 use tower_http::compression::predicate::SizeAbove;
 use tower_http::compression::CompressionLayer;
@@ -37,8 +38,9 @@ fn set_global_tracing() {
 #[tokio::main]
 async fn main() -> SnapResult<()> {
     set_global_tracing();
+    init_device_list();
 
-    let driver = new_driver().await?;
+    let driver = WebDriver::new_driver().await?;
     let shared_state = Arc::new(Driver {
         driver: driver.clone(),
     });
