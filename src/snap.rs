@@ -222,10 +222,11 @@ pub trait WebDriverOps {
         let mut caps = DesiredCapabilities::chrome();
 
         caps.set_headless()?;
-        caps.add_chrome_arg("--force-device-scale-factor=3.5")?;
 
         let driver = WebDriver::new(ds.as_str(), caps).await?;
-
+        let dura = Some(Duration::from_secs(180));
+        let tcfg = TimeoutConfiguration::new(dura, dura.clone(), dura.clone() );
+        driver.update_timeouts(tcfg).await?;
         Ok(driver)
     }
 }
@@ -243,6 +244,7 @@ pub trait ChromeDevToolsOps {
     async fn set_touchable(&self, touch: bool) -> SnapResult<()>;
     async fn set_scale_factor(&self, factor: f32) -> SnapResult<()>;
     async fn set_cookie_enabled(&self, enable: bool) -> SnapResult<()>;
+    async fn set_scrollbar_hidden(&self, hidden: bool) -> SnapResult<()>;
 }
 
 #[async_trait]
@@ -306,9 +308,12 @@ impl ChromeDevToolsOps for ChromeDevTools {
     }
 
     async fn set_scale_factor(&self, factor: f32) -> SnapResult<()> {
+        self.call_cdp_command("Emulation.resetPageScaleFactor", None)
+            .await?;
         let args = json!({"pageScaleFactor": factor});
         self.call_cdp_command("Emulation.setPageScaleFactor", Some(args))
             .await?;
+        
         Ok(())
     }
 
@@ -318,9 +323,17 @@ impl ChromeDevToolsOps for ChromeDevTools {
             .await?;
         Ok(())
     }
+
     async fn set_touchable(&self, touch: bool) -> SnapResult<()> {
         let args = json!({"enabled": touch});
         self.call_cdp_command("Emulation.setTouchEmulationEnabled", Some(args))
+            .await?;
+        Ok(())
+    }
+
+    async fn set_scrollbar_hidden(&self, hidden: bool) -> SnapResult<()> {
+        let args = json!({"hidden": hidden});
+        self.call_cdp_command("Emulation.setScrollbarsHidden", Some(args))
             .await?;
         Ok(())
     }
@@ -341,7 +354,8 @@ pub async fn take_pic(driver: WebDriver, payload: &InForm) -> SnapResult<Vec<u8>
 
     dev_tools.set_request_device(&device).await?;
     dev_tools.set_darkmode(device.isDarkMode).await?;
-    dev_tools.set_scale_factor(device.deviceScaleFactor).await?;
+    //dev_tools.set_scale_factor(device.deviceScaleFactor).await?;
+    dev_tools.set_scrollbar_hidden(true).await?;
 
     let p = driver
         .execute("return navigator.platform", Vec::new())
@@ -360,7 +374,10 @@ pub async fn take_pic(driver: WebDriver, payload: &InForm) -> SnapResult<Vec<u8>
             .await?
             .convert::<u32>()?;
         info!("{} {}", scroll_h, scroll_w);
-        driver.set_window_rect(0, 0, scroll_w, scroll_h).await?;
+        device.width = scroll_w;
+        device.height = scroll_h;
+        dev_tools.set_request_device(&device).await?;
+
     }
     if let Some(ref cookie) = payload.cookie {
         let cookie = Cookie::parse_encoded(cookie)?.into_owned();
@@ -373,8 +390,6 @@ pub async fn take_pic(driver: WebDriver, payload: &InForm) -> SnapResult<Vec<u8>
         tokio::time::sleep(delay).await;
     }
 
-    let elem = driver.find(By::Tag("body")).await?;
-    //let png_buffer = elem.screenshot_as_png().await?;
     let png_buffer = driver.screenshot_as_png().await?;
     let file_format = FileFormat::from_str(&payload.fileformat)?;
     let trans_buffer = png_transformer(&png_buffer, file_format)?;

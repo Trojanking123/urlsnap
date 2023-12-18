@@ -23,6 +23,7 @@ thiserror = "1.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"]}
 tracing = "0.1.40"
 async-trait = "0.1"
+vtracer = "0.6.3"
 
 [dev-dependencies]
 rand = "0.8"
