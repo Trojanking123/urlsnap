@@ -17,6 +17,8 @@ pub enum SnapError {
     FormatError(#[from] ParseError),
     #[error("cookie sunpported {0}")]
     CookieParseError(#[from] CookieParseError),
+    #[error("cookie sunpported {0}")]
+    Json(#[from] serde_json::Error),
     #[error("Unknown error {0}")]
     Other(#[from] Box<dyn ErrorTrait + Send + Sync>),
 }
