@@ -14,7 +14,6 @@ use std::io::Cursor;
 use std::time::Instant;
 use tracing::*;
 
-
 fn dynamic_image_to_image_buffer(dynamic_img: DynamicImage) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
     // 获取 DynamicImage 的像素数据
     let width = dynamic_img.width();
@@ -102,15 +101,9 @@ pub fn png_transformer(buf: &[u8], inform: FileFormat) -> SnapResult<Vec<u8>> {
 
 pub fn get_content_type(inform: FileFormat) -> String {
     match inform {
-        FileFormat::Pdf => {
-            format!("application/{}", inform.to_string().to_ascii_lowercase())
-        }
-        FileFormat::Svg => {
-            format!("image/svg+xml")
-        }
-        _ => {
-            format!("image/pdf")
-        }
+        FileFormat::Pdf => "application/pdf".to_owned(),
+        FileFormat::Svg => "image/svg+xml".to_owned(),
+        _ => format!("image/{}", inform.to_string().to_ascii_lowercase()),
     }
 }
 

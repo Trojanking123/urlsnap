@@ -1,10 +1,13 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+mod cdp;
+mod device;
 mod error;
 mod format_tran;
 mod snap;
 
+use crate::device::init_device_list;
 use crate::snap::*;
 
 use error::SnapResult;
@@ -41,6 +44,10 @@ async fn main() -> SnapResult<()> {
     init_device_list();
 
     let driver = WebDriver::new_driver().await?;
+    let driverr = WebDriver::new_driver().await?;
+    let driverrr = WebDriver::new_driver().await?;
+    let driverrrr = WebDriver::new_driver().await?;
+    driverrrr.quit().await?;
     let shared_state = Arc::new(Driver {
         driver: driver.clone(),
     });
